@@ -1,18 +1,42 @@
+let imagesToLoad = 3;
+
+function onImageLoaded() {
+    imagesToLoad--;
+    if (imagesToLoad === 0) {
+        // 显示开始游戏按钮
+        document.getElementById('startButton').style.display = 'block';
+    }
+}
+
+const monsterImg = new Image();
+monsterImg.src = 'monster.png';
+monsterImg.onload = onImageLoaded;
+
+const airplaneImg = new Image();
+airplaneImg.src = 'airplane.png';
+airplaneImg.onload = onImageLoaded;
+
+const giftImg = new Image();
+giftImg.src = 'gift.png';
+giftImg.onload = onImageLoaded;
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let gameInterval;
 let lastFrameTime = 0;
 
 function resetGame() {
-  plane = new Plane();
-  bullets = [];
-  monsters = [];
-  gifts = [];
-  score = 0;
-  lastBulletTime = 0;
-  lastMonsterTime = 0;
-  lastGiftTime = 0;
-  gameOverStatus = false;
+    plane = new Plane();
+    bullets = [];
+    monsters = [];
+    gifts = [];
+    score = 0;
+    lastBulletTime = 0;
+    lastMonsterTime = 0;
+    lastGiftTime = 0;
+    gameOverStatus = false;
+    giftsEaten = 0;
+    combo = 0;
 }
 
 
@@ -44,11 +68,15 @@ class GameObject {
 
 class Plane extends GameObject {
     constructor() {
-        super(canvas.width / 2 - 40, canvas.height - 60, 80, 30); // 将宽度从 50 改为 80
+        super(canvas.width / 2 - 40, canvas.height - 60, 60, 60);
         this.color = 'blue';
-        this.speed = 5;
+        this.speed = 4;
         this.lives = 5;
         this.direction = 0;
+    }
+
+    draw() {
+        ctx.drawImage(airplaneImg, this.x, this.y, this.width, this.height);
     }
 
     update() {
@@ -73,16 +101,19 @@ class Bullet extends GameObject {
 class Monster extends GameObject {
     constructor(x, y) {
         super(x, y, 40, 40);
-        this.color = 'red';
         this.speed = canvas.height / 4;
         this.hp = 1;
+    }
+
+    draw() {
+        ctx.drawImage(monsterImg, this.x, this.y, this.width, this.height);
     }
 
     update(dt) {
         // 基础速度为 canvas.height / 4
         // 随着得分的增加，怪兽速度增加，但最大速度为 canvas.height / 0.1
-        const maxSpeed = canvas.height / 0.1;
-        const speedMultiplier = Math.min(1 + score / 50000, maxSpeed / this.speed);
+        const maxSpeed = canvas.height / 0.01;
+        const speedMultiplier = Math.min(1 + score / 30000, maxSpeed / this.speed);
         this.y += this.speed * dt * speedMultiplier;
     }
 }
@@ -94,11 +125,15 @@ class Gift extends GameObject {
         this.speed = canvas.height / 4;
     }
 
+    draw() {
+        ctx.drawImage(giftImg, this.x, this.y, this.width, this.height);
+    }
+
     update(dt) {
         // 基础速度为 canvas.height / 4
         // 随着得分的增加，怪兽速度增加，但最大速度为 canvas.height / 0.1
         const maxSpeed = canvas.height / 0.1;
-        const speedMultiplier = Math.min(1 + score / 50000, maxSpeed / this.speed);
+        const speedMultiplier = Math.min(1 + score / 30000, maxSpeed / this.speed);
         this.y += this.speed * dt * speedMultiplier;
     }
 }
@@ -112,12 +147,16 @@ let lastMonsterTime;
 let lastGiftTime;
 let score;
 let gameOverStatus;
+let direction = 0; // 添加 direction 变量
+let giftsEaten;
+let combo;
 
 function update(dt) {
     if (gameOverStatus) {
         return;
     }
 
+    plane.direction = direction;
     plane.update();
 
     for (const bullet of bullets) {
@@ -132,9 +171,16 @@ function update(dt) {
         gift.update(dt);
     }
 
+    for (const gift of gifts) {
+        if (gift.y - gift.height >= canvas.height) {
+            combo = 0; // 重置连续吃到礼物的次数
+            break;
+        }
+    }
+
     handleCollisions();
 
-    score += 10 * dt;
+    score += 3 * dt;
 
     removeOffscreenObjects();
 
@@ -147,41 +193,56 @@ function draw() {
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
+
     plane.draw();
-  
+
     for (const bullet of bullets) {
-      bullet.draw();
+        bullet.draw();
     }
-  
+
     for (const monster of monsters) {
-      monster.draw();
+        monster.draw();
     }
-  
+
     for (const gift of gifts) {
-      gift.draw();
+        gift.draw();
     }
-  
+
     ctx.fillStyle = 'white';
     ctx.font = 'bold 16px Arial';
+    ctx.fillText(`宝石: ${giftsEaten}`, 10, 40); // 添加这行代码显示吃到的礼物数量
     ctx.fillText(`生命值: ${plane.lives.toFixed(2)}`, 10, 20);
     ctx.fillText(`分数: ${Math.floor(score)}`, canvas.width - 110, 20);
-  }
-  
+    if (combo >= 3) {
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 16px Arial';
+        ctx.fillText(`连击: ${combo}`, canvas.width - 110, 40);
+    }
+}
 
 function onKeyDown(e) {
     if (e.key === 'ArrowLeft') {
-        plane.direction = -1;
+        if (direction === 0 || direction === 1) {
+            direction = -1;
+        }
     } else if (e.key === 'ArrowRight') {
-        plane.direction = 1;
+        if (direction === 0 || direction === -1) {
+            direction = 1;
+        }
     }
 }
 
 function onKeyUp(e) {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if (e.key === 'ArrowLeft' && direction === -1) {
+        direction = 0;
+        plane.direction = 0;
+    } else if (e.key === 'ArrowRight' && direction === 1) {
+        direction = 0;
         plane.direction = 0;
     }
 }
+
+
 
 function handleCollisions() {
     for (const bullet of bullets) {
@@ -190,15 +251,19 @@ function handleCollisions() {
                 monster.hp -= 1;
                 bullet.y = -100;
                 if (monster.hp <= 0) {
-                    score += 500;
+                    score += 60;
                     monster.y = -100;
                 }
             }
         }
     }
 
-    for (const gift of gifts) {
+    for (let i = 0; i < gifts.length; i++) {
+        const gift = gifts[i];
         if (isColliding(plane, gift)) {
+            gifts.splice(i, 1);
+            giftsEaten++; // 增加吃到的礼物数量
+            combo++; // 增加连续吃到礼物的次数
             // 增加生命值，但不超过 5
             const lifeGain = 0.5;
             if (plane.lives + lifeGain <= 5) {
@@ -206,10 +271,12 @@ function handleCollisions() {
             } else {
                 plane.lives = 5;
             }
-            gift.y = -100;
+            score += 1000 * combo; // 修改分数计算方式
+            gifts.splice(i, 1); // 删除已经被吃掉的礼物
+            break; // 只吃一个礼物
         }
     }
-    
+
 
     for (const monster of monsters) {
         if (isColliding(plane, monster)) {
@@ -221,6 +288,7 @@ function handleCollisions() {
         }
     }
 }
+
 
 
 function isColliding(a, b) {
@@ -243,20 +311,36 @@ function spawnObjects(dt) {
     lastMonsterTime += dt;
     lastGiftTime += dt;
 
-    if (lastBulletTime > 0.2) {
+    const minBulletFrequency = 0.05;
+    const maxBulletFrequency = 0.3;
+    const maxGiftsForFrequencyChange = 20;
+
+    const bulletFrequency = maxBulletFrequency - (giftsEaten / maxGiftsForFrequencyChange) * (maxBulletFrequency - minBulletFrequency);
+    if (lastBulletTime > Math.max(bulletFrequency, minBulletFrequency)) {
         bullets.push(new Bullet(plane.x + plane.width / 2 - 2.5, plane.y));
         lastBulletTime = 0;
     }
 
-    if (lastMonsterTime > (Math.random() * 2 + 0.1)) {
+    if (lastMonsterTime > getMonsterSpawnInterval()) {
         spawnMonster();
         lastMonsterTime = 0;
     }
 
-    if (lastGiftTime > (Math.random() * 7 + 8)) {
+    // 在固定时间间隔后刷新礼物
+    if (lastGiftTime > (Math.random() * 12 + 12)) {
         spawnGift();
         lastGiftTime = 0;
     }
+}
+
+function getMonsterSpawnInterval() {
+    const minMonsterSpawnInterval = 0.05; // 设定最小生成间隔（单位：秒）
+    const maxMonsterSpawnInterval = 2.5; // 设定最大生成间隔（单位：秒）
+
+    // 随着得分的增加，生成间隔减少，但不低于最小生成间隔
+    const spawnInterval = maxMonsterSpawnInterval - Math.min(score / 100000, 1) * (maxMonsterSpawnInterval - minMonsterSpawnInterval);
+
+    return Math.random() * (spawnInterval - minMonsterSpawnInterval) + minMonsterSpawnInterval;
 }
 
 let animationFrameId;
@@ -274,11 +358,11 @@ function gameLoop(timestamp) {
 function startGame() {
     document.getElementById('startScreen').style.display = 'none';
     resetGame();
-    // gameInterval = setInterval(update, 1000 / 60); // 删除这行代码
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    requestAnimationFrame(gameLoop); // 添加这行代码
+    document.addEventListener('keydown', onKeyDown); // 添加这行代码
+    document.addEventListener('keyup', onKeyUp); // 添加这行代码
+    requestAnimationFrame(gameLoop);
 }
+
 
 
 function gameOver(score) {
@@ -291,11 +375,16 @@ function gameOver(score) {
 }
 
 
-function restartGame() {
-    document.getElementById('gameOverScreen').style.display = 'none'; // 添加这行代码
-    resetGame();
+document.getElementById('startButton').addEventListener('click', () => {
+    document.getElementById('startScreen').style.display = 'none';
     startGame();
+});
+
+function restartGame() {
+    document.getElementById('gameOverScreen').style.display = 'none';
 }
 
-document.getElementById('startButton').addEventListener('click', startGame);
-document.getElementById('restartButton').addEventListener('click', restartGame);
+document.getElementById('restartButton').addEventListener('click', () => {
+    restartGame();
+    startGame();
+});
