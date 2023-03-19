@@ -70,9 +70,12 @@ class Plane extends GameObject {
     constructor() {
         super(canvas.width / 2 - 40, canvas.height - 60, 60, 60);
         this.color = 'blue';
-        this.speed = 4;
+        this.speed = 0;
         this.lives = 5;
         this.direction = 0;
+        this.acceleration = 0.25;
+        this.deceleration = 0.55; // 添加减速属性
+        this.maxSpeed = 4; // 添加最大速度属性
     }
 
     draw() {
@@ -80,7 +83,23 @@ class Plane extends GameObject {
     }
 
     update() {
-        this.x += this.direction * this.speed;
+        if (this.direction === 0) {
+            // 当没有按方向键时，飞机自然减速
+            if (this.speed > 0) {
+                this.speed -= this.deceleration;
+                this.speed = Math.max(0, this.speed);
+            } else if (this.speed < 0) {
+                this.speed += this.deceleration;
+                this.speed = Math.min(0, this.speed);
+            }
+        } else {
+            // 当按方向键时，飞机加速
+            this.speed += this.direction * this.acceleration;
+            // 限制飞机速度在 -maxSpeed 到 maxSpeed 之间
+            this.speed = Math.max(-this.maxSpeed, Math.min(this.speed, this.maxSpeed));
+        }
+
+        this.x += this.speed;
         if (this.x < 0) this.x = 0;
         if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
     }
@@ -222,37 +241,34 @@ function draw() {
 
 function onKeyDown(e) {
     if (e.key === 'ArrowLeft') {
-        if (direction === 0 || direction === 1) {
-            direction = -1;
-        }
+        direction = -1;
     } else if (e.key === 'ArrowRight') {
-        if (direction === 0 || direction === -1) {
-            direction = 1;
-        }
+        direction = 1;
     }
 }
 
 function onKeyUp(e) {
     if (e.key === 'ArrowLeft' && direction === -1) {
         direction = 0;
-        plane.direction = 0;
     } else if (e.key === 'ArrowRight' && direction === 1) {
         direction = 0;
-        plane.direction = 0;
     }
 }
 
 
 
+
 function handleCollisions() {
     for (const bullet of bullets) {
-        for (const monster of monsters) {
+        for (let i = 0; i < monsters.length; i++) {
+            const monster = monsters[i];
             if (isColliding(bullet, monster)) {
                 monster.hp -= 1;
                 bullet.y = -100;
                 if (monster.hp <= 0) {
                     score += 60;
-                    monster.y = -100;
+                    monsters.splice(i, 1); // 移除击杀的怪物
+                    i--; // 调整索引，防止跳过下一个怪物
                 }
             }
         }
@@ -385,6 +401,5 @@ function restartGame() {
 }
 
 document.getElementById('restartButton').addEventListener('click', () => {
-    restartGame();
-    startGame();
+    location.reload(); // 刷新页面
 });
